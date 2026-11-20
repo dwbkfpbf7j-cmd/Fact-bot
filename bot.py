@@ -1,8 +1,10 @@
+
 import os
 import json
 import html
 import re
 import random
+import time
 import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -23,7 +25,7 @@ FEEDS = {
 def fetch(url):
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "Mozilla/5.0 FactBot/2.0"}
+        headers={"User-Agent": "Mozilla/5.0 FactBot/3.0"}
     )
     with urllib.request.urlopen(request, timeout=25) as response:
         return response.read()
@@ -86,38 +88,67 @@ def get_articles():
     return articles
 
 
+def split_text(text, max_bytes=450):
+    chunks = []
+    current = ""
+
+    for word in text.split():
+        candidate = (current + " " + word).strip()
+
+        if len(candidate.encode("utf-8")) > max_bytes and current:
+            chunks.append(current)
+            current = word
+        else:
+            current = candidate
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+
 def translate_to_russian(text):
     if not text:
         return ""
 
-    url = "https://translate.googleapis.com/translate_a/single"
+    chunks = split_text(text)
+    translated_chunks = []
 
-    params = urllib.parse.urlencode({
-        "client": "gtx",
-        "sl": "auto",
-        "tl": "ru",
-        "dt": "t",
-        "q": text[:3000]
-    })
+    for chunk in chunks:
+        params = urllib.parse.urlencode({
+            "q": chunk,
+            "langpair": "en|ru",
+            "mt": "1"
+        })
 
-    request = urllib.request.Request(
-        f"{url}?{params}",
-        headers={"User-Agent": "Mozilla/5.0"}
-    )
+        url = "https://api.mymemory.translated.net/get?" + params
 
-    with urllib.request.urlopen(request, timeout=25) as response:
-        result = json.loads(response.read().decode("utf-8"))
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 FactBot/3.0"}
+        )
 
-    translated = "".join(
-        part[0]
-        for part in result[0]
-        if part and part[0]
-    )
+        with urllib.request.urlopen(request, timeout=25) as response:
+            result = json.loads(response.read().decode("utf-8"))
 
-    if not translated:
-        raise RuntimeError("Не удалось перевести материал")
+        if result.get("responseStatus") != 200:
+            raise RuntimeError(
+                "Сервис перевода не смог перевести текст"
+            )
 
-    return translated.strip()
+        translated = (
+            result.get("responseData", {})
+            .get("translatedText", "")
+            .strip()
+        )
+
+        if not translated or "MYMEMORY WARNING" in translated.upper():
+            raise RuntimeError("Получен некорректный перевод")
+
+        translated_chunks.append(translated)
+        time.sleep(0.4)
+
+    return " ".join(translated_chunks)
 
 
 def load_history():
@@ -171,44 +202,53 @@ def main():
 
     random.shuffle(unseen)
 
-    article = unseen[0]
+    for article in unseen[:10]:
+        try:
+            print(f"Пробуем источник: {article['source']}")
+            print(f"Заголовок: {article['title']}")
 
-    print(f"Выбран источник: {article['source']}")
-    print(f"Заголовок: {article['title']}")
+            title_ru = translate_to_russian(article["title"])
 
-    title_ru = translate_to_russian(article["title"])
+            description = article["description"][:650]
+            description_ru = ""
 
-    description_ru = ""
-    if article["description"]:
-        description_ru = translate_to_russian(
-            article["description"][:2500]
-        )
+            if description:
+                description_ru = translate_to_russian(description)
 
-    title_ru = html.escape(title_ru)
-    description_ru = html.escape(description_ru)
-    source = html.escape(article["source"])
-    link = html.escape(article["link"], quote=True)
+            title_ru = html.escape(title_ru)
+            description_ru = html.escape(description_ru)
+            source = html.escape(article["source"])
+            link = html.escape(article["link"], quote=True)
 
-    message = (
-        "🔎 <b>А знаете ли вы?</b>\n\n"
-        f"<b>{title_ru}</b>\n\n"
+            message = (
+                "🔎 <b>А знаете ли вы?</b>\n\n"
+                f"<b>{title_ru}</b>\n\n"
+            )
+
+            if description_ru:
+                message += description_ru + "\n\n"
+
+            message += (
+                f"📰 <b>Источник:</b> "
+                f'<a href="{link}">{source}</a>\n\n'
+                "Подписывайтесь на канал ❤️"
+            )
+
+            publish(message)
+
+            history.append(article["link"])
+            save_history(history)
+
+            print("Публикация успешно отправлена!")
+            return
+
+        except Exception as error:
+            print(f"Не удалось обработать материал: {error}")
+            continue
+
+    raise RuntimeError(
+        "Не удалось перевести и опубликовать ни один материал"
     )
-
-    if description_ru:
-        message += f"{description_ru[:2500]}\n\n"
-
-    message += (
-        f"📰 <b>Источник:</b> "
-        f'<a href="{link}">{source}</a>\n\n'
-        "Подписывайтесь на канал ❤️"
-    )
-
-    publish(message)
-
-    history.append(article["link"])
-    save_history(history)
-
-    print("Публикация успешно отправлена!")
 
 
 if __name__ == "__main__":
