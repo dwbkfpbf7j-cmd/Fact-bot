@@ -102,17 +102,27 @@ def save_history(history):
     save_json(HISTORY_FILE, history[-1000:])
 
 
-def load_tracking():
-    data = load_json(TRACKING_FILE, {})
-    if not isinstance(data, dict):
-        data = {}
 
-    def save_tracking(data):
+def load_tracking():
+    try:
+        with open("tracking.json", "r", encoding="utf-8") as file:
+            return json.load(file)
+    except Exception:
+        return {
+            "total": 0,
+            "sources": {},
+            "categories": {},
+            "last_daily_fact": ""
+        }
+
+
+def save_tracking(data):
     try:
         with open("tracking.json", "w", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"Ошибка сохранения статистики: {e}")
+
         
     defaults = {
         "total_posts": 0,
