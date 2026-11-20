@@ -1,3 +1,4 @@
+
 import os
 import json
 import html
@@ -6,12 +7,14 @@ import random
 import time
 import urllib.request
 import urllib.parse
-import urllib.error
 import xml.etree.ElementTree as ET
 
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHANNEL = "@znaehti"
 HISTORY_FILE = "posted.json"
+
+BOT_NAME = "FACT BOT"
+MAX_DESCRIPTION = 850
 
 FEEDS = {
     # КОСМОС
@@ -39,7 +42,7 @@ FEEDS = {
     # ТЕХНОЛОГИИ
     "ScienceDaily — Технологии": "https://www.sciencedaily.com/rss/computers_math.xml",
 
-    # ИСТОРИЯ И АРХЕОЛОГИЯ
+    # ИСТОРИЯ
     "Smithsonian — История": "https://www.smithsonianmag.com/rss/history/",
     "BBC — Наука и природа": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
 }
@@ -48,7 +51,7 @@ FEEDS = {
 def fetch(url):
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "Mozilla/5.0 FactBot/4.0"}
+        headers={"User-Agent": "Mozilla/5.0 FactBot/5.0"}
     )
 
     with urllib.request.urlopen(request, timeout=25) as response:
@@ -85,13 +88,19 @@ def get_articles():
                         title = "".join(child.itertext()).strip()
 
                     elif name == "link":
-                        link = (
-                            child.attrib.get("href", "")
-                            or (child.text or "").strip()
-                        )
+                        href = child.attrib.get("href", "")
+                        rel = child.attrib.get("rel", "alternate")
+
+                        if href and rel == "alternate":
+                            link = href
+                        elif not href and child.text:
+                            link = child.text.strip()
 
                     elif name in ("description", "summary", "content"):
-                        description = "".join(child.itertext()).strip()
+                        value = "".join(child.itertext()).strip()
+
+                        if len(value) > len(description):
+                            description = value
 
                 title = clean_text(title)
                 description = clean_text(description)
@@ -148,7 +157,7 @@ def translate_to_russian(text):
 
         request = urllib.request.Request(
             url,
-            headers={"User-Agent": "Mozilla/5.0 FactBot/4.0"}
+            headers={"User-Agent": "Mozilla/5.0 FactBot/5.0"}
         )
 
         with urllib.request.urlopen(request, timeout=25) as response:
@@ -170,6 +179,33 @@ def translate_to_russian(text):
         time.sleep(0.5)
 
     return " ".join(translated_chunks)
+
+
+def get_category(source):
+    source = source.lower()
+
+    if any(word in source for word in ("nasa", "космос", "space")):
+        return "🌌", "КОСМОС", "#космос"
+
+    if any(word in source for word in ("живот", "природа", "animals")):
+        return "🐾", "ЖИВОТНЫЕ И ПРИРОДА", "#природа"
+
+    if any(word in source for word in ("car", "drive", "autoblog")):
+        return "🚗", "АВТОМИР", "#авто"
+
+    if any(word in source for word in ("климат", "noaa", "планета")):
+        return "🌍", "НАША ПЛАНЕТА", "#планета"
+
+    if any(word in source for word in ("здоров", "health", "medicine")):
+        return "🧬", "ЗДОРОВЬЕ И НАУКА", "#наука"
+
+    if any(word in source for word in ("технолог", "computers", "math")):
+        return "⚡", "ТЕХНОЛОГИИ", "#технологии"
+
+    if any(word in source for word in ("история", "history")):
+        return "🏛", "ИСТОРИЯ", "#история"
+
+    return "🔬", "ИНТЕРЕСНЫЙ ФАКТ", "#факты"
 
 
 def load_history():
@@ -198,7 +234,7 @@ def publish(message):
         "chat_id": CHANNEL,
         "text": message,
         "parse_mode": "HTML",
-        "disable_web_page_preview": "false"
+        "disable_web_page_preview": "true"
     }).encode()
 
     request = urllib.request.Request(url, data=data)
@@ -208,6 +244,44 @@ def publish(message):
 
     if not result.get("ok"):
         raise RuntimeError(f"Ошибка Telegram: {result}")
+
+
+def create_post(article):
+    emoji, category, hashtag = get_category(article["source"])
+
+    title_ru = translate_to_russian(article["title"])
+
+    description = article["description"][:MAX_DESCRIPTION]
+    description_ru = ""
+
+    if description:
+        description_ru = translate_to_russian(description)
+
+    title_ru = html.escape(title_ru)
+    description_ru = html.escape(description_ru)
+    source = html.escape(article["source"])
+    link = html.escape(article["link"], quote=True)
+
+    message = (
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ <b>{BOT_NAME}</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"{emoji} <b>{category}</b>\n\n"
+        f"<b>{title_ru}</b>\n\n"
+    )
+
+    if description_ru:
+        message += description_ru + "\n\n"
+
+    message += (
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"📰 <a href=\"{link}\">Читать первоисточник</a>\n"
+        f"📡 Источник: {source}\n\n"
+        f"{hashtag} #FactBot\n"
+        "🧠 <b>Узнавай больше каждый день!</b>"
+    )
+
+    return message
 
 
 def main():
@@ -234,32 +308,7 @@ def main():
             print(f"Пробуем источник: {article['source']}")
             print(f"Заголовок: {article['title']}")
 
-            title_ru = translate_to_russian(article["title"])
-
-            description = article["description"][:650]
-            description_ru = ""
-
-            if description:
-                description_ru = translate_to_russian(description)
-
-            title_ru = html.escape(title_ru)
-            description_ru = html.escape(description_ru)
-            source = html.escape(article["source"])
-            link = html.escape(article["link"], quote=True)
-
-            message = (
-                "🔎 <b>А знаете ли вы?</b>\n\n"
-                f"<b>{title_ru}</b>\n\n"
-            )
-
-            if description_ru:
-                message += description_ru + "\n\n"
-
-            message += (
-                f"📰 <b>Источник:</b> "
-                f'<a href="{link}">{source}</a>\n\n'
-                "Подписывайтесь на канал ❤️"
-            )
+            message = create_post(article)
 
             publish(message)
 
