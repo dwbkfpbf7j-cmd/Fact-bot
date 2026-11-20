@@ -1,4 +1,3 @@
-
 import os
 import json
 import html
@@ -7,6 +6,7 @@ import random
 import time
 import urllib.request
 import urllib.parse
+import urllib.error
 import xml.etree.ElementTree as ET
 
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -14,19 +14,43 @@ CHANNEL = "@znaehti"
 HISTORY_FILE = "posted.json"
 
 FEEDS = {
-    "NASA": "https://www.nasa.gov/feed/",
-    "NOAA": "https://www.noaa.gov/news/rss.xml",
-    "Smithsonian": "https://www.smithsonianmag.com/rss/latest_articles/",
-    "ScienceDaily": "https://www.sciencedaily.com/rss/all.xml",
-    "BBC Science": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+    # КОСМОС
+    "NASA — Космос": "https://www.nasa.gov/feed/",
+    "NASA — Новости": "https://www.nasa.gov/rss/breaking_news.rss",
+    "ScienceDaily — Космос": "https://www.sciencedaily.com/rss/space_time.xml",
+
+    # ЖИВОТНЫЕ
+    "ScienceDaily — Животные": "https://www.sciencedaily.com/rss/plants_animals.xml",
+    "Smithsonian — Природа": "https://www.smithsonianmag.com/rss/science-nature/",
+
+    # АВТОМОБИЛИ
+    "Car and Driver": "https://www.caranddriver.com/rss/news.xml",
+    "The Drive": "https://www.thedrive.com/feed",
+    "Autoblog": "https://www.autoblog.com/.rss/feed/3d70fbb5-ef5e-44f3-a547-e60939496e82.xml",
+
+    # ПРИРОДА И ПЛАНЕТА
+    "NOAA — Планета": "https://www.noaa.gov/news/rss.xml",
+    "ScienceDaily — Климат": "https://www.sciencedaily.com/rss/earth_climate.xml",
+
+    # НАУКА И ЗДОРОВЬЕ
+    "ScienceDaily — Наука": "https://www.sciencedaily.com/rss/all.xml",
+    "ScienceDaily — Здоровье": "https://www.sciencedaily.com/rss/health_medicine.xml",
+
+    # ТЕХНОЛОГИИ
+    "ScienceDaily — Технологии": "https://www.sciencedaily.com/rss/computers_math.xml",
+
+    # ИСТОРИЯ И АРХЕОЛОГИЯ
+    "Smithsonian — История": "https://www.smithsonianmag.com/rss/history/",
+    "BBC — Наука и природа": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
 }
 
 
 def fetch(url):
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "Mozilla/5.0 FactBot/3.0"}
+        headers={"User-Agent": "Mozilla/5.0 FactBot/4.0"}
     )
+
     with urllib.request.urlopen(request, timeout=25) as response:
         return response.read()
 
@@ -117,24 +141,21 @@ def translate_to_russian(text):
     for chunk in chunks:
         params = urllib.parse.urlencode({
             "q": chunk,
-            "langpair": "en|ru",
-            "mt": "1"
+            "langpair": "en|ru"
         })
 
         url = "https://api.mymemory.translated.net/get?" + params
 
         request = urllib.request.Request(
             url,
-            headers={"User-Agent": "Mozilla/5.0 FactBot/3.0"}
+            headers={"User-Agent": "Mozilla/5.0 FactBot/4.0"}
         )
 
         with urllib.request.urlopen(request, timeout=25) as response:
             result = json.loads(response.read().decode("utf-8"))
 
         if result.get("responseStatus") != 200:
-            raise RuntimeError(
-                "Сервис перевода не смог перевести текст"
-            )
+            raise RuntimeError("Ошибка сервиса перевода")
 
         translated = (
             result.get("responseData", {})
@@ -143,10 +164,10 @@ def translate_to_russian(text):
         )
 
         if not translated or "MYMEMORY WARNING" in translated.upper():
-            raise RuntimeError("Получен некорректный перевод")
+            raise RuntimeError("Некорректный перевод")
 
         translated_chunks.append(translated)
-        time.sleep(0.4)
+        time.sleep(0.5)
 
     return " ".join(translated_chunks)
 
@@ -155,13 +176,19 @@ def load_history():
     try:
         with open(HISTORY_FILE, "r", encoding="utf-8") as file:
             return json.load(file)
+
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
 
 def save_history(history):
     with open(HISTORY_FILE, "w", encoding="utf-8") as file:
-        json.dump(history[-1000:], file, ensure_ascii=False, indent=2)
+        json.dump(
+            history[-1000:],
+            file,
+            ensure_ascii=False,
+            indent=2
+        )
 
 
 def publish(message):
@@ -202,7 +229,7 @@ def main():
 
     random.shuffle(unseen)
 
-    for article in unseen[:10]:
+    for article in unseen[:15]:
         try:
             print(f"Пробуем источник: {article['source']}")
             print(f"Заголовок: {article['title']}")
@@ -243,13 +270,13 @@ def main():
             return
 
         except Exception as error:
-            print(f"Не удалось обработать материал: {error}")
+            print(f"Ошибка материала: {error}")
             continue
 
     raise RuntimeError(
         "Не удалось перевести и опубликовать ни один материал"
     )
 
-print("НОВАЯ ВЕРСИЯ БОТА 3.0")
+
 if __name__ == "__main__":
     main()
