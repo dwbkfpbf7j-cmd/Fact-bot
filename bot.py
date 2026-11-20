@@ -13,13 +13,39 @@ TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHANNEL = "@znaehti"
 HISTORY_FILE = "posted.json"
 
+
 FEEDS = {
-    "NASA": "https://www.nasa.gov/feed/",
-    "NOAA": "https://www.noaa.gov/news/rss.xml",
-    "Smithsonian": "https://www.smithsonianmag.com/rss/latest_articles/",
-    "ScienceDaily": "https://www.sciencedaily.com/rss/all.xml",
-    "BBC Science": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+    # КОСМОС
+    "Космос — NASA": "https://www.nasa.gov/feed/",
+    "Космос — NASA Breaking News": "https://www.nasa.gov/rss/breaking_news.rss",
+    "Космос — ScienceDaily": "https://www.sciencedaily.com/rss/space_time.xml",
+
+    # ЖИВОТНЫЕ
+    "Животные — ScienceDaily": "https://www.sciencedaily.com/rss/plants_animals.xml",
+    "Животные — Smithsonian": "https://www.smithsonianmag.com/rss/science-nature/",
+
+    # АВТОМОБИЛИ
+    "Автомобили — Car and Driver": "https://www.caranddriver.com/rss/news.xml",
+    "Автомобили — The Drive": "https://www.thedrive.com/feed",
+    "Автомобили — Autoblog": "https://www.autoblog.com/.rss/feed/3d70fbb5-ef5e-44f3-a547-e60939496e82.xml",
+
+    # ПРИРОДА И ПЛАНЕТА
+    "Природа — NOAA": "https://www.noaa.gov/news/rss.xml",
+    "Климат — ScienceDaily": "https://www.sciencedaily.com/rss/earth_climate.xml",
+
+    # НАУКА И ЗДОРОВЬЕ
+    "Наука — ScienceDaily": "https://www.sciencedaily.com/rss/all.xml",
+    "Здоровье — ScienceDaily": "https://www.sciencedaily.com/rss/health_medicine.xml",
+
+    # ТЕХНОЛОГИИ
+    "Технологии — NASA": "https://www.nasa.gov/technology/",
+    "Технологии — ScienceDaily": "https://www.sciencedaily.com/rss/computers_math.xml",
+
+    # ИСТОРИЯ
+    "История — Smithsonian": "https://www.smithsonianmag.com/rss/history/",
+    "История — BBC": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
 }
+
 
 
 def fetch(url):
