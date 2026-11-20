@@ -1,4 +1,5 @@
- name: Fact Bot Publisher
+
+name: Fact Bot Publisher
 
 on:
   schedule:
