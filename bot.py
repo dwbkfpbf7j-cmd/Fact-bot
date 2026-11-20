@@ -107,6 +107,13 @@ def load_tracking():
     if not isinstance(data, dict):
         data = {}
 
+    def save_tracking(data):
+    try:
+        with open("tracking.json", "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Ошибка сохранения статистики: {e}")
+        
     defaults = {
         "total_posts": 0,
         "news_posts": 0,
