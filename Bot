@@ -1,0 +1,44 @@
+
+name: Fact Bot Publisher
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+    - cron: "0 8 * * *"
+    - cron: "0 12 * * *"
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Telegram bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: python bot.py
+
+      - name: Save publication history
+        if: success()
+        run: |
+          git config user.name "Fact Bot"
+          git config user.email "fact-bot@users.noreply.github.com"
+          if [ -f posted.json ]; then
+            git add posted.json
+            if ! git diff --cached --quiet; then
+              git commit -m "Update publication history"
+              git push
+            fi
+          fi
